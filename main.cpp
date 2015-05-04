@@ -4,102 +4,103 @@
 #include "data_handler.h"
 
 
-class ExplosionData : public DataClass {
+class TestData : public DataClass {
 public:
-	ExplosionData(int pos) : _pos(pos), _damage(60) {};
+	TestData(int pos) : _pos(pos), _result(60) {};
 
 	int getPosition()	const	{return _pos;}
-	int getDamage()		const	{return _damage;}
+	int getResult()		const	{return _result;}
 
 private:
-	int _pos, _damage;
+	int _pos, _result;
 };
 
-class Enemy
+class ProxyData
 {
 public:
-	Enemy() : _name("Bad Enemy"), _damage(15) {};
+	ProxyData() : _name("PH"), _result(15) {};
 	
 	std::string getName()	const {return _name;}
-	int			getDamage()	const {return _damage;}
+	int			getResult()	const {return _result;}
 
 private:
 	std::string _name;
-	int _damage;
+	int _result;
 };
 
-class EnemyHitData : public DataClass
+class TestProxyData : public DataClass
 {
 public:
-	EnemyHitData(Enemy* enemy) : _enemy(enemy){}
+	TestProxyData(ProxyData* pd) : _pd(pd){}
 
-	Enemy* getEnemy() const		{return _enemy;}
+	ProxyData* getPd() const		{return _pd;}
 
 private:
-	Enemy* _enemy;
+	ProxyData* _pd;
 };
 
 
-class Monster : public DataHandler
+class ExchangeController : public DataHandler
 {
 public:
-	Monster() : _pos(20), _hp(100)
+	ExchangeController() : _pos(20), _result(100)
 	{
-		registerDataHandlerFunc(this, &Monster::onExplosion);
-		registerDataHandlerFunc(this, &Monster::onEnemyHit);
+		registerDataHandlerFunc(this, &ExchangeController::gotTestResult);
+		registerDataHandlerFunc(this, &ExchangeController::gotTestProxyResult);
 	}
 
-	void receiveDamage(int dmg)
+	void receiveResult(int result)
 	{
-		_hp -= dmg;
-		std::cout << "hp: " << _hp << std::endl;
-		if(_hp <= 0)
+		_result -= result;
+		std::cout << "result: " << _result << std::endl;
+		if(_result <= 0)
 		{
-			std::cout << "I'm dead" << std::endl;
+			std::cout << "Too many errors" << std::endl;
 		}
 	}
 #if USE_PTR
-	void onExplosion(const ExplosionData* explosion) {
-		if(abs(_pos - explosion->getPosition()) < 20) {
-			std::cout << "Hit by explosion!!!" << std::endl;
-			receiveDamage(explosion->getDamage());
+	void gotTestResult(const TestData* testdata) {
+		if(abs(_pos - testdata->getPosition()) < 20) {
+			std::cout << "Out of bounds!!!" << std::endl;
+			receiveResult(testdata->getResult());
 		}
 		else {
-			std::cout << "Out of explosion range :)" << std::endl;
+			std::cout << "In bounds, no error :)" << std::endl;
 		}
 	}
 		
-	void onEnemyHit(const EnemyHitData* hit) {
-		Enemy* enemy = hit->getEnemy();
-		std::cout << "Hit by enemy: " << enemy->getName().c_str() << " got damage: " << enemy->getDamage() << std::endl;
-		receiveDamage(enemy->getDamage());
+	void gotTestProxyResult(const TestProxyData* tpd) {
+		ProxyData* pd = tpd->getPd();
+		std::cout << ": " << pd->getName().c_str() << " got proxied results: " << pd->getResult() << std::endl;
+		receiveResult(pd->getResult());
 	}
 #else
-	void onExplosion(const ExplosionData& explosion) {
-		if (abs(_pos - explosion.getPosition()) < 20) {
-			std::cout << "Hit by explosion!!!" << std::endl;
-			receiveDamage(explosion.getDamage());
+	void gotTestResult(const TestData& testdata) {
+		if (abs(_pos - testdata.getPosition()) < 20) {
+			std::cout << "Out of bounds!!!" << std::endl;
+			receiveResult(testdata.getResult());
 		}
 		else {
-			std::cout << "Out of explosion range :)" << std::endl;
+			std::cout << "In bounds, no error :)" << std::endl;
 		}
 	}
-	
-	void onEnemyHit(const EnemyHitData& hit) {
-		Enemy* enemy = hit.getEnemy();
-		std::cout << "Hit by enemy: " << enemy->getName().c_str() << " got damage: " << enemy->getDamage() << std::endl;
-		receiveDamage(enemy->getDamage());
+
+	void gotTestProxyResult(const TestProxyData& tpd) {
+		ProxyData* pd = tpd.getPd();
+		std::cout << ": " << pd->getName().c_str() << " got proxied results: " << pd->getResult() << std::endl;
+		receiveResult(pd->getResult());
 	}
 #endif
 
 	int _pos;
-	int _hp;
+	int _result;
 };
 
-class Tank
+
+class GuiManager
 {
 public:
-	Tank() : _dataHandler(this) {}
+	GuiManager() : _dataHandler(this) {}
 
 #if USE_PTR
 	void handle(const DataClass* _data) {
@@ -113,56 +114,57 @@ public:
 	}
 
 private:
-	class TankDataHandler : public DataHandler
+	class MessageHandler : public DataHandler
 	{
 	public:
-		TankDataHandler(Tank* tank) : _tank(tank) {
-			registerDataHandlerFunc(_tank, &Tank::onDamagedByExplosion);
+		MessageHandler(GuiManager* gm) : _gm(gm) {
+			registerDataHandlerFunc(_gm, &GuiManager::gotTestResult);
 		}
-		Tank* _tank;
+		GuiManager* _gm;
 	};
 	//friend class TankEventHandler; // not needed with C++11
 #if USE_PTR
-	void onDamagedByExplosion(const ExplosionData* explosion) {
-		std::cout << "Hit by explosion. Whatever" << std::endl;
+	void gotTestResult(const TestData* testdata) {
+		std::cout << "Got test result: " << testdata->getResult() << std::endl;
 	}
 #else
-	void onDamagedByExplosion(const ExplosionData& explosion) {
-		std::cout << "Hit by explosion. Whatever" << std::endl;
+	void gotTestResult(const TestData& testdata) {
+		std::cout << "Got test result: " << testdata.getResult() << std::endl;
 	}
 #endif
-	TankDataHandler _dataHandler;
+	MessageHandler _dataHandler;
 };
 
 
 int main()
 {
-	std::cout << "=== Monster ===" << std::endl; 
-	Monster monster;
-	Tank tank;
+	ExchangeController ec;
+	GuiManager gm;
 
+
+	std::cout << "=== ExchangeController ===" << std::endl; 
 #if USE_PTR
-	monster.handle(new ExplosionData(40));
-	monster.handle(new ExplosionData(10));
-	monster.handle(new EnemyHitData(new Enemy));
-	monster.handle(new EnemyHitData(new Enemy));
-	monster.handle(new EnemyHitData(new Enemy));
+	ec.handle(new TestData(40));
+	ec.handle(new TestData(10));
+	ec.handle(new TestProxyData(new ProxyData));
+	ec.handle(new TestProxyData(new ProxyData));
+	ec.handle(new TestProxyData(new ProxyData));
 
-	std::cout << "\n=== Tank ===" << std::endl;
-	tank.handle(new ExplosionData(40));
-	tank.handle(new ExplosionData(10));
-	tank.handle(new EnemyHitData(new Enemy));
+	std::cout << "\n=== GuiManager ===" << std::endl;
+	gm.handle(new TestData(40));
+	gm.handle(new TestData(10));
+	gm.handle(new TestProxyData(new ProxyData));
 #else
-	monster.handle( ExplosionData(40));
-	monster.handle( ExplosionData(10));
-	monster.handle( EnemyHitData(new Enemy));
-	monster.handle( EnemyHitData(new Enemy));
-	monster.handle( EnemyHitData(new Enemy));
+	ec.handle( TestData(40));
+	ec.handle( TestData(10));
+	ec.handle( TestProxyData(new ProxyData));
+	ec.handle( TestProxyData(new ProxyData));
+	ec.handle( TestProxyData(new ProxyData));
 
-	std::cout << "\n=== Tank ===" << std::endl; 
-	tank.handle(ExplosionData(40));
-	tank.handle(ExplosionData(10));
-	tank.handle(EnemyHitData(new Enemy));
+	std::cout << "\n=== GuiManager ===" << std::endl; 
+	gm.handle(TestData(40));
+	gm.handle(TestData(10));
+	gm.handle(TestProxyData(new ProxyData));
 #endif
 	system("PAUSE");
 }
